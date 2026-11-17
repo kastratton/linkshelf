@@ -220,6 +220,18 @@
                 font-size: 13px;
                 margin-right: 4px;
             }
+            .cat-head h2 {
+                cursor: pointer;
+            }
+            .chev svg {
+                transition: transform 0.15s;
+            }
+            .cat.collapsed .chev svg {
+                transform: rotate(-90deg);
+            }
+            .cat.collapsed .cat-head {
+                border-bottom: 0;
+            }
             .mini {
                 border: 0;
                 background: transparent;
@@ -432,6 +444,9 @@
                 </div>
                 <div class="tools">
                     <button class="btn" id="addCat" title="Add category">＋<span>Category</span></button>
+                    <button class="btn" id="fold" title="Collapse or expand all categories">
+                        ⇕<span>Collapse all</span>
+                    </button>
                     <button class="btn" id="exp" title="Export JSON">⤓<span>Export</span></button>
                     <button class="btn" id="imp" title="Import JSON">⤒<span>Import</span></button>
                     <button
@@ -558,6 +573,9 @@
                 }
                 function render() {
                     cols = colCount();
+                    $("#fold span").textContent = state.categories.some((c) => !c.collapsed)
+                        ? "Collapse all"
+                        : "Expand all";
                     const q = $("#q").value.trim().toLowerCase();
                     const app = $("#app");
                     app.textContent = "";
@@ -571,47 +589,66 @@
                         if (q && !ls.length) return;
                         shown++;
                         const last = state.categories.length - 1;
+                        const collapsed = !!c.collapsed && !q;
                         const card = h(
                             "section",
-                            { class: "cat" },
+                            { class: "cat" + (collapsed ? " collapsed" : "") },
                             h(
                                 "div",
                                 { class: "cat-head" },
-                                h("h2", { title: c.name }, c.name),
+                                h(
+                                    "button",
+                                    {
+                                        class: "mini chev",
+                                        title: collapsed ? "Expand category" : "Collapse category",
+                                        "aria-label": collapsed ? "Expand category" : "Collapse category",
+                                        "aria-expanded": String(!collapsed),
+                                        onclick: () => toggleCat(c),
+                                    },
+                                    svg("down")
+                                ),
+                                h("h2", { title: c.name, onclick: () => toggleCat(c) }, c.name),
                                 h("span", { class: "count" }, q ? ls.length + " of " + all.length : String(all.length)),
                                 mini("up", "Move category earlier", () => moveCat(i, -1), "", i === 0 || !!q),
                                 mini("down", "Move category later", () => moveCat(i, 1), "", i === last || !!q),
                                 mini("edit", "Rename category", () => catDialog(c)),
                                 mini("del", "Delete category", () => delCat(c), "danger")
                             ),
-                            h(
-                                "ul",
-                                { class: "links" },
-                                ls.map((l) =>
-                                    h(
-                                        "li",
-                                        { class: "link" },
-                                        h(
-                                            "span",
-                                            { class: "dot", "aria-hidden": "true" },
-                                            (l.name[0] || "?").toUpperCase()
-                                        ),
-                                        h(
-                                            "a",
-                                            { href: l.url, target: "_blank", rel: "noopener noreferrer", title: l.url },
-                                            h("div", { class: "n" }, l.name),
-                                            h("div", { class: "u" }, host(l.url))
-                                        ),
-                                        h(
-                                            "div",
-                                            { class: "acts" },
-                                            mini("edit", "Edit link", () => linkDialog(l)),
-                                            mini("del", "Delete link", () => delLink(l), "danger")
-                                        )
-                                    )
-                                )
-                            ),
-                            q
+                            collapsed
+                                ? null
+                                : h(
+                                      "ul",
+                                      { class: "links" },
+                                      ls.map((l) =>
+                                          h(
+                                              "li",
+                                              { class: "link" },
+                                              h(
+                                                  "span",
+                                                  { class: "dot", "aria-hidden": "true" },
+                                                  (l.name[0] || "?").toUpperCase()
+                                              ),
+                                              h(
+                                                  "a",
+                                                  {
+                                                      href: l.url,
+                                                      target: "_blank",
+                                                      rel: "noopener noreferrer",
+                                                      title: l.url,
+                                                  },
+                                                  h("div", { class: "n" }, l.name),
+                                                  h("div", { class: "u" }, host(l.url))
+                                              ),
+                                              h(
+                                                  "div",
+                                                  { class: "acts" },
+                                                  mini("edit", "Edit link", () => linkDialog(l)),
+                                                  mini("del", "Delete link", () => delLink(l), "danger")
+                                              )
+                                          )
+                                      )
+                                  ),
+                            q || collapsed
                                 ? null
                                 : h("button", { class: "addrow", onclick: () => linkDialog(null, c.id) }, "＋ Add link")
                         );
@@ -648,6 +685,11 @@
                     }
                 }
 
+                function toggleCat(c) {
+                    c.collapsed = !c.collapsed;
+                    save();
+                    render();
+                }
                 function moveCat(i, d) {
                     const a = state.categories,
                         j = i + d;
@@ -951,6 +993,12 @@
                     if (colCount() !== cols) render();
                 });
                 $("#addCat").onclick = () => catDialog();
+                $("#fold").onclick = () => {
+                    const any = state.categories.some((c) => !c.collapsed);
+                    state.categories.forEach((c) => (c.collapsed = any));
+                    save();
+                    render();
+                };
                 $("#addLink").onclick = () => linkDialog();
                 $("#exp").onclick = exportJson;
                 $("#imp").onclick = () => $("#file").click();
